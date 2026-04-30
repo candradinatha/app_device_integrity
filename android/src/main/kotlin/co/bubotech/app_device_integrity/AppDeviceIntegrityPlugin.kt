@@ -27,19 +27,27 @@ class AppDeviceIntegrityPlugin: FlutterPlugin, MethodCallHandler, ActivityAware 
 
   override fun onMethodCall(call: MethodCall, result: Result) {
     if (call.method == "getAttestationServiceSupport") {
-      var challenge: String?
-      if (call.argument<Long>("gcp") != null) {
-        challenge = call.argument<String>("challengeString").toString()
-        var attestation: AppDeviceIntegrity = AppDeviceIntegrity(context,call.argument<Long>("gcp")!!)
-        attestation.integrityTokenResponse.addOnSuccessListener { response ->
-          val integrityToken: String = response.token()
-          result.success(integrityToken.toString())
-        }.addOnFailureListener { e ->
-          println("integrityToken Error:="+e)
-//                    result.error()
-        }
+      val gcp = call.argument<Long>("gcp")
+      val challenge = call.argument<String>("challengeString")
 
+      if (gcp == null) {
+        result.error("MISSING_ARG", "gcp is required on Android", null)
+        return
       }
+      if (challenge.isNullOrBlank()) {
+        result.error("MISSING_ARG", "challengeString is required", null)
+        return
+      }
+
+      val attestation = AppDeviceIntegrity(context, gcp, challenge)
+      attestation.integrityTokenResponse
+        .addOnSuccessListener { response ->
+          result.success(response.token())
+        }
+        .addOnFailureListener { e ->
+          // surface the actual error to Flutter instead of swallowing it
+          result.error("INTEGRITY_ERROR", e.message, e.toString())
+        }
     } else {
       result.notImplemented()
     }
